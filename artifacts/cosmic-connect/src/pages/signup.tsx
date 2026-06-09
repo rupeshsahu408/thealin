@@ -1,7 +1,40 @@
-import { Link } from "wouter";
-import { ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
+import { ChevronRight, AlertCircle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Signup() {
+  const { signInWithGoogle, signUpWithEmail, user, loading, error, clearError } = useAuth();
+  const [, navigate] = useLocation();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/dashboard");
+    }
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    clearError();
+  }, []);
+
+  async function handleSignUp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name || !email || !password) return;
+    setSubmitting(true);
+    await signUpWithEmail(name, email, password);
+    setSubmitting(false);
+  }
+
+  async function handleGoogleSignIn() {
+    setSubmitting(true);
+    await signInWithGoogle();
+    setSubmitting(false);
+  }
+
   return (
     <main className="pt-16 min-h-screen bg-white flex items-center justify-center">
       <div className="w-full max-w-sm mx-auto px-4 py-16">
@@ -18,9 +51,20 @@ export default function Signup() {
           </p>
         </div>
 
-        <div className="space-y-3">
-          {/* Google */}
-          <button className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-md px-4 py-3 text-sm font-medium text-[#0A0A0A] hover:bg-gray-50 transition-colors">
+        {error && (
+          <div className="mb-4 flex items-start gap-2 bg-red-50 border border-red-100 rounded-md px-4 py-3">
+            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSignUp} className="space-y-3">
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-md px-4 py-3 text-sm font-medium text-[#0A0A0A] hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -39,33 +83,46 @@ export default function Signup() {
             </div>
           </div>
 
-          {/* Email */}
           <div className="space-y-3">
             <input
               type="text"
               placeholder="Full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
               className="w-full border border-gray-200 rounded-md px-4 py-3 text-sm text-[#0A0A0A] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057FF] focus:border-transparent transition"
             />
             <input
               type="email"
               placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
               className="w-full border border-gray-200 rounded-md px-4 py-3 text-sm text-[#0A0A0A] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057FF] focus:border-transparent transition"
             />
             <input
               type="password"
-              placeholder="Create password"
+              placeholder="Create password (min. 6 characters)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
               className="w-full border border-gray-200 rounded-md px-4 py-3 text-sm text-[#0A0A0A] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057FF] focus:border-transparent transition"
             />
-            <button className="w-full flex items-center justify-center gap-2 bg-[#0057FF] text-white font-medium px-4 py-3 rounded-md hover:bg-blue-700 transition-colors text-sm">
-              Create Account
-              <ChevronRight className="w-4 h-4" />
+            <button
+              type="submit"
+              disabled={submitting || !name || !email || !password}
+              className="w-full flex items-center justify-center gap-2 bg-[#0057FF] text-white font-medium px-4 py-3 rounded-md hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? "Creating account..." : "Create Account"}
+              {!submitting && <ChevronRight className="w-4 h-4" />}
             </button>
           </div>
 
           <p className="text-xs text-gray-400 text-center leading-relaxed">
             By signing up, you agree to explore the cosmos responsibly.
           </p>
-        </div>
+        </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Already have an account?{" "}
