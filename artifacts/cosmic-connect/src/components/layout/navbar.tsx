@@ -8,6 +8,7 @@ const navLinks = [
   { href: "/universe", label: "Universe" },
   { href: "/starmap", label: "Star Map 3D" },
   { href: "/encode", label: "Encode & Send" },
+  { href: "/my-signals", label: "My Signals" },
   { href: "/analyzer", label: "AI Analyzer" },
   { href: "/about", label: "About" },
 ];

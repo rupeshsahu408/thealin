@@ -27,6 +27,9 @@ import {
   CheckCircle,
   AlertCircle,
   Send,
+  Rocket,
+  X,
+  Zap,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -478,6 +481,139 @@ function LayerBreakdown({ enc }: { enc: EncodedMessage }) {
   );
 }
 
+// ─── Celebration Modal ────────────────────────────────────────────────────────
+
+interface CelebrationData {
+  signalId: string;
+  text: string;
+  bits: number;
+  sentAt: Date;
+}
+
+function CelebrationModal({ data, onNavigate, onClose }: {
+  data: CelebrationData;
+  onNavigate: () => void;
+  onClose: () => void;
+}) {
+  const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { clearInterval(id); onNavigate(); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [onNavigate]);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ background: "rgba(0,0,4,0.95)" }}>
+      {/* Animated star dots */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {Array.from({ length: 60 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full bg-white animate-pulse"
+            style={{
+              width: `${1 + Math.random() * 2}px`,
+              height: `${1 + Math.random() * 2}px`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              opacity: 0.2 + Math.random() * 0.6,
+              animationDuration: `${1.5 + Math.random() * 3}s`,
+              animationDelay: `${Math.random() * 2}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Main card */}
+      <div className="relative z-10 max-w-lg w-full mx-4 bg-black/90 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+
+        {/* Close button */}
+        <button onClick={onClose} className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors z-20">
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Glowing top bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-blue-600 via-cyan-400 to-purple-600" />
+
+        <div className="px-8 py-8 text-center">
+          {/* Rocket animation */}
+          <div className="relative w-20 h-20 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full bg-blue-600/20 animate-ping" />
+            <div className="absolute inset-2 rounded-full bg-cyan-500/15 animate-ping" style={{ animationDelay: "0.3s" }} />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-blue-600/30 to-cyan-600/20 border border-cyan-500/30 flex items-center justify-center">
+              <Rocket className="w-9 h-9 text-cyan-300" />
+            </div>
+          </div>
+
+          {/* Headline */}
+          <h2 className="text-2xl font-bold text-white mb-1">बधाई हो! 🎉</h2>
+          <p className="text-cyan-300 font-semibold mb-1">Your message is now in space!</p>
+          <p className="text-white/40 text-sm mb-6">Traveling at the speed of light — 299,792 km/s</p>
+
+          {/* Message preview */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 mb-6 text-left">
+            <p className="text-xs text-white/30 uppercase tracking-widest mb-2">Your Message</p>
+            <p className="text-white font-medium leading-relaxed line-clamp-3">"{data.text}"</p>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="bg-white/5 rounded-xl px-3 py-3">
+              <Zap className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
+              <p className="text-xs text-white/30">Encoded</p>
+              <p className="text-sm font-bold text-white font-mono">{data.bits.toLocaleString()}</p>
+              <p className="text-xs text-white/20">bits</p>
+            </div>
+            <div className="bg-white/5 rounded-xl px-3 py-3">
+              <Radio className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
+              <p className="text-xs text-white/30">Frequency</p>
+              <p className="text-sm font-bold text-white font-mono">1420</p>
+              <p className="text-xs text-white/20">MHz</p>
+            </div>
+            <div className="bg-white/5 rounded-xl px-3 py-3">
+              <Send className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
+              <p className="text-xs text-white/30">Sent At</p>
+              <p className="text-sm font-bold text-white font-mono">{data.sentAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
+              <p className="text-xs text-white/20">today</p>
+            </div>
+          </div>
+
+          {/* Real data disclaimer */}
+          <div className="bg-green-950/40 border border-green-500/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-2 text-left">
+            <CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-green-300/80 leading-relaxed">
+              <span className="font-semibold text-green-300">Real Data, Not Simulated.</span>{" "}
+              Your signal position is calculated using actual physics: distance = 299,792 km/s × elapsed time.
+            </p>
+          </div>
+
+          {/* CTA + Countdown */}
+          <button
+            onClick={onNavigate}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold py-3.5 rounded-xl transition-all mb-3 shadow-lg shadow-blue-500/25"
+          >
+            <Rocket className="w-4 h-4" />
+            Open Mission Control — Track Live
+          </button>
+
+          {/* Countdown progress bar */}
+          <div className="w-full bg-white/10 rounded-full h-1 mb-2 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-white/40 transition-all duration-1000"
+              style={{ width: `${((5 - countdown) / 5) * 100}%` }}
+            />
+          </div>
+          <p className="text-xs text-white/25">Auto-opening in {countdown}s…</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Transmit Section ─────────────────────────────────────────────────────────
 
 function TransmitSection({ enc }: { enc: EncodedMessage }) {
@@ -485,12 +621,18 @@ function TransmitSection({ enc }: { enc: EncodedMessage }) {
   const [, navigate] = useLocation();
   const [transmitting, setTransmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+
+  function handleNavigate(signalId: string) {
+    navigate(`/signal/${signalId}`);
+  }
 
   async function handleTransmit() {
     if (!user || transmitting) return;
     setTransmitting(true);
     setError(null);
     try {
+      const now = new Date();
       const ref = await addDoc(collection(db, "messages"), {
         userId: user.uid,
         authorName: user.displayName || user.email?.split("@")[0] || "Explorer",
@@ -504,7 +646,7 @@ function TransmitSection({ enc }: { enc: EncodedMessage }) {
         gridRows: enc.gridRows,
         gridCols: enc.gridCols,
       });
-      navigate(`/signal/${ref.id}`);
+      setCelebration({ signalId: ref.id, text: enc.originalText, bits: enc.totalBits, sentAt: now });
     } catch {
       setError("Could not transmit. Please try again.");
       setTransmitting(false);
@@ -524,31 +666,40 @@ function TransmitSection({ enc }: { enc: EncodedMessage }) {
   }
 
   return (
-    <div className="space-y-2">
-      <button
-        onClick={handleTransmit}
-        disabled={transmitting || enc.originalText.trim().length < 3}
-        className="inline-flex items-center gap-2 bg-[#0057FF] text-white font-semibold px-5 py-2.5 rounded-md hover:bg-blue-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
-      >
-        {transmitting ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Launching signal…
-          </>
-        ) : (
-          <>
-            <Send className="w-4 h-4" />
-            Transmit to Space — Track Live
-          </>
-        )}
-      </button>
-      {error && (
-        <span className="text-xs text-red-500 flex items-center gap-1">
-          <AlertCircle className="w-3.5 h-3.5" />
-          {error}
-        </span>
+    <>
+      {celebration && (
+        <CelebrationModal
+          data={celebration}
+          onNavigate={() => handleNavigate(celebration.signalId)}
+          onClose={() => { setCelebration(null); setTransmitting(false); }}
+        />
       )}
-    </div>
+      <div className="space-y-2">
+        <button
+          onClick={handleTransmit}
+          disabled={transmitting || enc.originalText.trim().length < 3}
+          className="inline-flex items-center gap-2 bg-[#0057FF] text-white font-semibold px-5 py-2.5 rounded-md hover:bg-blue-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
+        >
+          {transmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Launching signal…
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Transmit to Space — Track Live
+            </>
+          )}
+        </button>
+        {error && (
+          <span className="text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5" />
+            {error}
+          </span>
+        )}
+      </div>
+    </>
   );
 }
 

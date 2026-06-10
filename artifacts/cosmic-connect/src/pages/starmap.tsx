@@ -247,6 +247,7 @@ export default function StarMap() {
   // ── Fetch live signals from Firestore ────────────────────────────────────────
   useEffect(() => {
     if (!user) { setSignals([]); return; }
+    let unsub: (() => void) | undefined;
     try {
       const q = query(
         collection(db, "messages"),
@@ -254,17 +255,17 @@ export default function StarMap() {
         where("status", "==", "transmitted"),
         orderBy("sentAt", "desc"),
       );
-      const unsub = onSnapshot(q, snap => {
+      unsub = onSnapshot(q, snap => {
         setSignals(snap.docs.map(d => ({
           id: d.id,
           sentAtMs: d.data().sentAt?.toMillis?.() ?? Date.now(),
           text: d.data().originalText ?? "",
         })));
       }, () => { /* Firebase not configured — ignore */ });
-      return unsub;
     } catch {
       // Firebase not configured in dev — silently skip
     }
+    return () => unsub?.();
   }, [user]);
 
   // ── Sync signal ring meshes into Three.js scene ───────────────────────────────
@@ -298,7 +299,7 @@ export default function StarMap() {
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000005);
+    scene.background = new THREE.Color(0x00000c);
     sceneRef.current = scene;
 
     // Camera
@@ -329,7 +330,7 @@ export default function StarMap() {
     bgGeo.setAttribute("position", new THREE.Float32BufferAttribute(bg.positions, 3));
     bgGeo.setAttribute("color",    new THREE.Float32BufferAttribute(bg.colors,    3));
     const bgMat = new THREE.PointsMaterial({
-      size: 0.9, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.85,
+      size: 2.2, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.95,
     });
     scene.add(new THREE.Points(bgGeo, bgMat));
 
@@ -349,38 +350,47 @@ export default function StarMap() {
     namedGeo.setAttribute("position", new THREE.Float32BufferAttribute(namedPositions, 3));
     namedGeo.setAttribute("color",    new THREE.Float32BufferAttribute(namedColors, 3));
 
-    const namedMat = new THREE.ShaderMaterial({
-      uniforms: { },
-      vertexShader: `
-        attribute float size;
-        attribute vec3 color;
-        varying vec3 vColor;
-        void main() {
-          vColor = color;
-          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (200.0 / -mvPos.z);
-          gl_Position = projectionMatrix * mvPos;
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        void main() {
-          vec2 uv = gl_PointCoord - 0.5;
-          float d = dot(uv, uv);
-          if (d > 0.25) discard;
-          float alpha = 1.0 - smoothstep(0.05, 0.25, d);
-          float core = 1.0 - smoothstep(0.0, 0.08, d);
-          vec3 col = mix(vColor, vec3(1.0), core * 0.6);
-          gl_FragColor = vec4(col, alpha);
-        }
-      `,
-      transparent: true,
-      vertexColors: true,
-      depthWrite: false,
-    });
-
+    // Attach sizes — used by ShaderMaterial vertex shader
     const sizesAttr = new THREE.Float32BufferAttribute(namedSizes, 1);
     namedGeo.setAttribute("size", sizesAttr);
+
+    // ShaderMaterial for glow effect; PointsMaterial fallback for limited WebGL
+    let namedMat: THREE.ShaderMaterial | THREE.PointsMaterial;
+    try {
+      namedMat = new THREE.ShaderMaterial({
+        uniforms: {},
+        vertexShader: `
+          attribute float size;
+          attribute vec3 color;
+          varying vec3 vColor;
+          void main() {
+            vColor = color;
+            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = size * (280.0 / -mvPos.z);
+            gl_Position = projectionMatrix * mvPos;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          void main() {
+            vec2 uv = gl_PointCoord - 0.5;
+            float d = dot(uv, uv);
+            if (d > 0.25) discard;
+            float alpha = 1.0 - smoothstep(0.04, 0.25, d);
+            float core = 1.0 - smoothstep(0.0, 0.10, d);
+            vec3 col = mix(vColor, vec3(1.0), core * 0.7);
+            gl_FragColor = vec4(col, alpha);
+          }
+        `,
+        transparent: true,
+        vertexColors: true,
+        depthWrite: false,
+      });
+    } catch {
+      namedMat = new THREE.PointsMaterial({
+        size: 4.0, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 1.0,
+      });
+    }
 
     const namedPts = new THREE.Points(namedGeo, namedMat);
     namedPtsRef.current = namedPts;
