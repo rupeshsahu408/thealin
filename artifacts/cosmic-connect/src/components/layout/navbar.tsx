@@ -7,6 +7,7 @@ const navLinks = [
   { href: "/observatory", label: "Observatory" },
   { href: "/universe", label: "Universe" },
   { href: "/encode", label: "Encode & Send" },
+  { href: "/analyzer", label: "AI Analyzer" },
   { href: "/about", label: "About" },
 ];
 

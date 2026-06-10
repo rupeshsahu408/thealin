@@ -649,9 +649,9 @@ export default function Observatory() {
 
   const station = STATIONS[stationIdx];
 
-  // Initialize TF.js
+  // Initialize TF.js (CPU backend first — avoids WebGL errors in GPU-less envs)
   useEffect(() => {
-    tf.ready().then(() => setTfReady(true));
+    tf.setBackend("cpu").then(() => tf.ready()).then(() => setTfReady(true));
   }, []);
 
   // Signal generation loop (20fps, no re-render)

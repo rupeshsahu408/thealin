@@ -10,6 +10,7 @@ import Home from "@/pages/home";
 import Observatory from "@/pages/observatory";
 import Universe from "@/pages/universe";
 import Encode from "@/pages/encode";
+import Analyzer from "@/pages/analyzer";
 import About from "@/pages/about";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
@@ -27,6 +28,7 @@ function Router() {
         <Route path="/observatory" component={Observatory} />
         <Route path="/universe" component={Universe} />
         <Route path="/encode" component={Encode} />
+        <Route path="/analyzer" component={Analyzer} />
         <Route path="/about" component={About} />
         <Route path="/login" component={Login} />
         <Route path="/signup" component={Signup} />

@@ -1,0 +1,2 @@
+- [TF.js CPU backend](tfjs-cpu-backend.md) — always set CPU backend before tf.ready() in Replit preview (no WebGL/GPU available)
+- [Prime frequency DFT fix](prime-freq-dft.md) — autocorr at prime lags doesn't work for sinusoidal prime-freq signals; must use dftMagAtBin with correct phase formula

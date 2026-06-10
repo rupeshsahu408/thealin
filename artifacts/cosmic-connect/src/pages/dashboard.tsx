@@ -4,7 +4,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/layout/footer";
-import { Radio, Waves, Globe, ChevronRight, User, LogOut } from "lucide-react";
+import { Radio, Waves, Globe, ChevronRight, User, LogOut, BrainCircuit } from "lucide-react";
 
 interface UserData {
   displayName: string;
@@ -65,21 +65,24 @@ export default function Dashboard() {
       icon: <Radio className="w-5 h-5 text-[#0057FF]" />,
       title: "Signal Observatory",
       description: "Monitor live radio signals and flag anomalies",
-      badge: "Phase 4",
     },
     {
       href: "/universe",
       icon: <Globe className="w-5 h-5 text-[#0057FF]" />,
       title: "Universe Explorer",
       description: "Browse 5,600+ real confirmed exoplanets",
-      badge: "Phase 3",
     },
     {
       href: "/encode",
       icon: <Waves className="w-5 h-5 text-[#0057FF]" />,
       title: "Encode and Send",
       description: "Encode your message in Arecibo-style binary",
-      badge: "Phase 5",
+    },
+    {
+      href: "/analyzer",
+      icon: <BrainCircuit className="w-5 h-5 text-[#0057FF]" />,
+      title: "AI Signal Analyzer",
+      description: "Deep pattern recognition with TensorFlow.js neural network",
     },
   ];
 
@@ -205,20 +208,17 @@ export default function Dashboard() {
             <p className="text-xs font-semibold text-[#0057FF] uppercase tracking-widest mb-6">
               Mission modules
             </p>
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {quickLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   className="group relative border border-gray-100 rounded-xl p-6 hover:border-blue-100 hover:shadow-md transition-all"
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="mb-3">
                     <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                       {link.icon}
                     </div>
-                    <span className="text-xs text-orange-500 font-medium bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5">
-                      {link.badge}
-                    </span>
                   </div>
                   <h3 className="font-semibold text-[#0A0A0A] mb-1">{link.title}</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">{link.description}</p>
