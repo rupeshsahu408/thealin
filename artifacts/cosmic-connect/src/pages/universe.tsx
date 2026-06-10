@@ -466,7 +466,8 @@ export default function Universe() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/planets");
+        const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+        const res = await fetch(`${apiBase}/api/planets`);
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
         const data: RawPlanet[] = await res.json();
         if (!cancelled) {
