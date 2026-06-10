@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import Footer from "@/components/layout/footer";
 import {
   Waves,
@@ -26,6 +26,7 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  Send,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -477,6 +478,80 @@ function LayerBreakdown({ enc }: { enc: EncodedMessage }) {
   );
 }
 
+// ─── Transmit Section ─────────────────────────────────────────────────────────
+
+function TransmitSection({ enc }: { enc: EncodedMessage }) {
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const [transmitting, setTransmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleTransmit() {
+    if (!user || transmitting) return;
+    setTransmitting(true);
+    setError(null);
+    try {
+      const ref = await addDoc(collection(db, "messages"), {
+        userId: user.uid,
+        authorName: user.displayName || user.email?.split("@")[0] || "Explorer",
+        authorId: user.uid,
+        originalText: enc.originalText,
+        encodedBinary: enc.fullBinary.slice(0, 1000),
+        targetCoordinates: "Omnidirectional — all directions",
+        sentAt: Timestamp.now(),
+        status: "transmitted",
+        totalBits: enc.totalBits,
+        gridRows: enc.gridRows,
+        gridCols: enc.gridCols,
+      });
+      navigate(`/signal/${ref.id}`);
+    } catch {
+      setError("Could not transmit. Please try again.");
+      setTransmitting(false);
+    }
+  }
+
+  if (!user) {
+    return (
+      <Link
+        href="/login"
+        className="inline-flex items-center gap-2 bg-[#0057FF] text-white font-semibold px-5 py-2.5 rounded-md hover:bg-blue-700 transition-colors text-sm"
+      >
+        Sign in to transmit to space
+        <ChevronRight className="w-4 h-4" />
+      </Link>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={handleTransmit}
+        disabled={transmitting || enc.originalText.trim().length < 3}
+        className="inline-flex items-center gap-2 bg-[#0057FF] text-white font-semibold px-5 py-2.5 rounded-md hover:bg-blue-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
+      >
+        {transmitting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Launching signal…
+          </>
+        ) : (
+          <>
+            <Send className="w-4 h-4" />
+            Transmit to Space — Track Live
+          </>
+        )}
+      </button>
+      {error && (
+        <span className="text-xs text-red-500 flex items-center gap-1">
+          <AlertCircle className="w-3.5 h-3.5" />
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── Save Section ─────────────────────────────────────────────────────────────
 
 function SaveSection({ enc, onSaved }: { enc: EncodedMessage; onSaved: (id: string) => void }) {
@@ -862,7 +937,20 @@ export default function Encode() {
                 </div>
               )}
 
-              {/* Save */}
+              {/* Transmit to Space */}
+              {encoded && (
+                <div className="border border-[#0057FF]/30 bg-blue-50 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-[#0057FF] uppercase tracking-widest">
+                    Ready to launch?
+                  </p>
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    Transmit your encoded message to the cosmos and track it live — watch your signal travel past the Moon, Mars, Proxima Centauri and beyond, in real time.
+                  </p>
+                  <TransmitSection enc={encoded} />
+                </div>
+              )}
+
+              {/* Save to community */}
               {encoded && (
                 <SaveSection enc={encoded} onSaved={(id) => setNewMsgId(id)} />
               )}

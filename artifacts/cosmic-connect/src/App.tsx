@@ -15,6 +15,7 @@ import About from "@/pages/about";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import Dashboard from "@/pages/dashboard";
+import SignalTracker from "@/pages/signal-tracker";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ function Router() {
             <Dashboard />
           </ProtectedRoute>
         </Route>
+        <Route path="/signal/:id" component={SignalTracker} />
         <Route component={NotFound} />
       </Switch>
     </>
