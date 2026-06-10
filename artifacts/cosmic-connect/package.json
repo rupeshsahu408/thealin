@@ -76,6 +76,8 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
-    "firebase": "^12.14.0"
+    "@types/three": "^0.184.1",
+    "firebase": "^12.14.0",
+    "three": "^0.184.0"
   }
 }

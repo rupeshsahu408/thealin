@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const navLinks = [
   { href: "/observatory", label: "Observatory" },
   { href: "/universe", label: "Universe" },
+  { href: "/starmap", label: "Star Map 3D" },
   { href: "/encode", label: "Encode & Send" },
   { href: "/analyzer", label: "AI Analyzer" },
   { href: "/about", label: "About" },

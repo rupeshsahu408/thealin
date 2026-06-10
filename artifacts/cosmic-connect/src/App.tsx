@@ -16,6 +16,7 @@ import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import Dashboard from "@/pages/dashboard";
 import SignalTracker from "@/pages/signal-tracker";
+import StarMap from "@/pages/starmap";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ function Router() {
           </ProtectedRoute>
         </Route>
         <Route path="/signal/:id" component={SignalTracker} />
+        <Route path="/starmap" component={StarMap} />
         <Route component={NotFound} />
       </Switch>
     </>
