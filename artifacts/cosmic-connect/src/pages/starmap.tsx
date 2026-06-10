@@ -3,7 +3,14 @@ import { Link } from "wouter";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { NAMED_STARS, SPECTRAL_COLORS, starSize, type StarData } from "@/data/stars";
-import { ArrowLeft, Info, Search, X, Layers, RotateCcw, ZoomIn } from "lucide-react";
+import { ArrowLeft, Info, Search, X, Layers, RotateCcw, Radio } from "lucide-react";
+import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
+
+// ─── Physics Constants ─────────────────────────────────────────────────────────
+const C_KM_S = 299_792;
+const LY_KM  = 9_461_000_000_000;
 
 // ─── Background Star Generation ───────────────────────────────────────────────
 
@@ -11,14 +18,9 @@ function generateBackgroundStars(count: number) {
   const positions: number[] = [];
   const colors: number[] = [];
   const sizes: number[] = [];
-  const seed = [0.1231, 0.8742, 0.4567, 0.2345, 0.6789];
-  let si = 0;
-  const rng = () => { si = (si + 1) % seed.length; return (Math.sin(si * 127.1 + Date.now() * 0) * 43758.5453) % 1; };
-  // simple seeded approach — just use Math.random with fixed pattern
   for (let i = 0; i < count; i++) {
     const theta = Math.random() * Math.PI * 2;
     const phi   = Math.acos(2 * Math.random() - 1);
-    // Milky Way band — higher density near equator (phi ~ PI/2)
     const bandWeight = 0.5 + 0.5 * Math.pow(Math.abs(Math.sin(phi - Math.PI / 2 + 0.3)), 0.3);
     const r = 300 + Math.random() * 700 * bandWeight;
     positions.push(
@@ -27,7 +29,6 @@ function generateBackgroundStars(count: number) {
       r * Math.sin(phi) * Math.sin(theta),
     );
     const brightness = 0.3 + Math.random() * 0.7;
-    // Slight color variation
     const t = Math.random();
     colors.push(brightness * (0.8 + t * 0.2), brightness * (0.85 + t * 0.1), brightness);
     sizes.push(0.4 + Math.random() * 1.2);
@@ -49,6 +50,38 @@ function signalYears(ly: number): string {
   return `${ly.toFixed(0)} years`;
 }
 
+function signalDistLy(sentAtMs: number): number {
+  const elapsedSec = (Date.now() - sentAtMs) / 1000;
+  return (C_KM_S * elapsedSec) / LY_KM;
+}
+
+function formatSignalDist(ly: number): string {
+  const km = ly * LY_KM;
+  if (km < 1_000_000)         return `${(km / 1_000).toFixed(1)}k km`;
+  if (km < C_KM_S * 3600)     return `${(km / C_KM_S / 60).toFixed(1)} light-min`;
+  if (km < C_KM_S * 86400)    return `${(km / C_KM_S / 3600).toFixed(1)} light-hrs`;
+  if (ly < 1)                  return `${(ly * 365.25).toFixed(1)} light-days`;
+  return `${ly.toFixed(4)} light-years`;
+}
+
+function timeAgoShort(ms: number): string {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60)   return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60)   return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24)   return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+// ─── Signal type ──────────────────────────────────────────────────────────────
+
+interface LiveSignal {
+  id: string;
+  sentAtMs: number;
+  text: string;
+}
+
 // ─── Star Info Panel ──────────────────────────────────────────────────────────
 
 function StarPanel({ star, onClose }: { star: StarData; onClose: () => void }) {
@@ -68,7 +101,6 @@ function StarPanel({ star, onClose }: { star: StarData; onClose: () => void }) {
 
   return (
     <div className="absolute top-16 right-4 w-80 bg-black/85 border border-white/15 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl z-20">
-      {/* Header */}
       <div className="px-5 py-4 border-b border-white/10 flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -82,7 +114,6 @@ function StarPanel({ star, onClose }: { star: StarData; onClose: () => void }) {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="px-5 py-4 grid grid-cols-2 gap-3 border-b border-white/10">
         <div>
           <p className="text-xs text-white/40 mb-0.5">Distance</p>
@@ -102,12 +133,10 @@ function StarPanel({ star, onClose }: { star: StarData; onClose: () => void }) {
         </div>
       </div>
 
-      {/* Note */}
       <div className="px-5 py-4 border-b border-white/10">
         <p className="text-xs text-white/60 leading-relaxed">{star.note}</p>
       </div>
 
-      {/* CTA */}
       <div className="px-5 py-3">
         <p className="text-xs text-white/30 text-center">
           A signal from Earth reaches{" "}
@@ -120,9 +149,73 @@ function StarPanel({ star, onClose }: { star: StarData; onClose: () => void }) {
   );
 }
 
+// ─── Live Signals Panel ────────────────────────────────────────────────────────
+
+function LiveSignalsPanel({ signals }: { signals: LiveSignal[] }) {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (signals.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-20 left-4 w-72 bg-black/80 border border-cyan-500/30 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl z-20">
+      <div className="px-4 py-3 border-b border-cyan-500/20 flex items-center gap-2">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500" />
+        </span>
+        <span className="text-xs font-bold text-cyan-300 uppercase tracking-widest">
+          {signals.length} Live Signal{signals.length > 1 ? "s" : ""} Active
+        </span>
+        <Radio className="w-3.5 h-3.5 text-cyan-400 ml-auto" />
+      </div>
+      <div className="divide-y divide-white/5 max-h-52 overflow-y-auto">
+        {signals.map((sig, i) => {
+          const ly = signalDistLy(sig.sentAtMs);
+          return (
+            <Link key={sig.id} href={`/signal/${sig.id}`}>
+              <div className="px-4 py-3 hover:bg-white/5 transition-colors cursor-pointer">
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <p className="text-xs text-white/70 font-medium line-clamp-1 flex-1">
+                    "{sig.text || "Encoded message"}"
+                  </p>
+                  <span className="text-xs text-white/30 font-mono shrink-0">{timeAgoShort(sig.sentAtMs)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 animate-pulse"
+                      style={{ width: `${Math.min(100, (ly / 4.24) * 100).toFixed(2)}%`, minWidth: "4px" }}
+                    />
+                  </div>
+                  <span className="text-xs font-mono text-cyan-400">{formatSignalDist(ly)}</span>
+                </div>
+                <p className="text-xs text-white/20 mt-1 font-mono">
+                  Ring #{i + 1} · {ly < 0.001 ? "Near Earth" : ly < 4.24 ? "En route to Proxima" : "Beyond Proxima Centauri"}
+                </p>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+      <div className="px-4 py-2 border-t border-white/5">
+        <p className="text-xs text-white/20 text-center">Tap a signal to track its journey →</p>
+      </div>
+      {/* Suppress unused tick warning */}
+      <span className="hidden">{tick}</span>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StarMap() {
+  const { user } = useAuth();
+
   const mountRef     = useRef<HTMLDivElement>(null);
   const rendererRef  = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef     = useRef<THREE.Scene | null>(null);
@@ -133,18 +226,70 @@ export default function StarMap() {
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef     = useRef(new THREE.Vector2());
 
-  const [selected, setSelected]   = useState<StarData | null>(null);
-  const [hovered, setHovered]     = useState<StarData | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [starsCount]              = useState(NAMED_STARS.length + 6000);
-  const [search, setSearch]       = useState("");
+  // Signal ring meshes — read from animate loop each frame
+  type SigMesh = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; sentAtMs: number };
+  const signalMeshesRef = useRef<SigMesh[]>([]);
+
+  const [selected, setSelected]     = useState<StarData | null>(null);
+  const [hovered, setHovered]       = useState<StarData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [starsCount]                = useState(NAMED_STARS.length + 6000);
+  const [search, setSearch]         = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
-  const [tooltip, setTooltip]     = useState<{ x: number; y: number; name: string } | null>(null);
+  const [tooltip, setTooltip]       = useState<{ x: number; y: number; name: string } | null>(null);
+  const [signals, setSignals]       = useState<LiveSignal[]>([]);
 
   const filteredSearch = search.trim().length > 1
     ? NAMED_STARS.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
     : [];
+
+  // ── Fetch live signals from Firestore ────────────────────────────────────────
+  useEffect(() => {
+    if (!user) { setSignals([]); return; }
+    try {
+      const q = query(
+        collection(db, "messages"),
+        where("userId", "==", user.uid),
+        where("status", "==", "transmitted"),
+        orderBy("sentAt", "desc"),
+      );
+      const unsub = onSnapshot(q, snap => {
+        setSignals(snap.docs.map(d => ({
+          id: d.id,
+          sentAtMs: d.data().sentAt?.toMillis?.() ?? Date.now(),
+          text: d.data().originalText ?? "",
+        })));
+      }, () => { /* Firebase not configured — ignore */ });
+      return unsub;
+    } catch {
+      // Firebase not configured in dev — silently skip
+    }
+  }, [user]);
+
+  // ── Sync signal ring meshes into Three.js scene ───────────────────────────────
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    // Remove old meshes
+    signalMeshesRef.current.forEach(({ mesh }) => scene.remove(mesh));
+    signalMeshesRef.current = [];
+
+    // Create one sphere per signal
+    signals.forEach(sig => {
+      const geo = new THREE.SphereGeometry(1, 32, 20);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x00ddff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.18,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      scene.add(mesh);
+      signalMeshesRef.current.push({ mesh, mat, sentAtMs: sig.sentAtMs });
+    });
+  }, [signals]);
 
   // ── Three.js Setup ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -224,7 +369,6 @@ export default function StarMap() {
           float d = dot(uv, uv);
           if (d > 0.25) discard;
           float alpha = 1.0 - smoothstep(0.05, 0.25, d);
-          // Star glow center
           float core = 1.0 - smoothstep(0.0, 0.08, d);
           vec3 col = mix(vColor, vec3(1.0), core * 0.6);
           gl_FragColor = vec4(col, alpha);
@@ -235,7 +379,6 @@ export default function StarMap() {
       depthWrite: false,
     });
 
-    // Attach sizes attribute
     const sizesAttr = new THREE.Float32BufferAttribute(namedSizes, 1);
     namedGeo.setAttribute("size", sizesAttr);
 
@@ -256,7 +399,7 @@ export default function StarMap() {
     glow.rotation.x = Math.PI / 2;
     scene.add(glow);
 
-    // Ambient light for Earth sphere
+    // Ambient light
     scene.add(new THREE.AmbientLight(0x334488, 2));
     scene.add(Object.assign(new THREE.DirectionalLight(0xffffff, 1.5), { position: { x: 5, y: 3, z: 5 } }));
 
@@ -277,6 +420,19 @@ export default function StarMap() {
       frameRef.current = requestAnimationFrame(animate);
       controls.update();
       glow.rotation.z += 0.003;
+
+      // Update signal ring spheres each frame
+      const t = Date.now() / 1000;
+      signalMeshesRef.current.forEach(({ mesh, mat, sentAtMs }, idx) => {
+        const elapsedSec = (Date.now() - sentAtMs) / 1000;
+        const distLy = (C_KM_S * elapsedSec) / LY_KM;
+        // Same sqrt scale as star positions — sphere radius matches star distances
+        const r = Math.pow(distLy + 1, 0.45) * 5;
+        mesh.scale.setScalar(r);
+        // Pulsing opacity — each ring pulses at slightly different phase
+        mat.opacity = 0.08 + 0.10 * (0.5 + 0.5 * Math.sin(t * 1.2 + idx * 1.3));
+      });
+
       renderer.render(scene, camera);
     }
     animate();
@@ -285,6 +441,9 @@ export default function StarMap() {
     return () => {
       cancelAnimationFrame(frameRef.current);
       window.removeEventListener("resize", onResize);
+      // Clean up signal meshes
+      signalMeshesRef.current.forEach(({ mesh }) => scene.remove(mesh));
+      signalMeshesRef.current = [];
       renderer.dispose();
       el.removeChild(renderer.domElement);
     };
@@ -379,6 +538,18 @@ export default function StarMap() {
             </div>
             <p className="text-xs text-white/30 font-mono">{starsCount.toLocaleString()} stars rendered</p>
           </div>
+          {signals.length > 0 && (
+            <div className="bg-cyan-950/60 border border-cyan-500/30 backdrop-blur-sm rounded-lg px-3 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+                </span>
+                <span className="text-xs font-bold text-cyan-300">{signals.length} Signal Ring{signals.length > 1 ? "s" : ""}</span>
+              </div>
+              <p className="text-xs text-cyan-400/50 font-mono">Glowing spheres = your signals</p>
+            </div>
+          )}
         </div>
 
         {/* Right — Controls */}
@@ -439,6 +610,20 @@ export default function StarMap() {
       {/* ── Star Info Panel ───────────────────────────────────────────────────── */}
       {selected && <StarPanel star={selected} onClose={() => setSelected(null)} />}
 
+      {/* ── Live Signals Panel ─────────────────────────────────────────────────── */}
+      <LiveSignalsPanel signals={signals} />
+
+      {/* ── No signals hint (logged in but no signals) ─────────────────────────── */}
+      {user && signals.length === 0 && (
+        <div className="absolute bottom-20 left-4 bg-black/60 border border-white/10 backdrop-blur-sm rounded-xl px-4 py-3 z-20 pointer-events-none">
+          <div className="flex items-center gap-2 mb-1">
+            <Radio className="w-3.5 h-3.5 text-white/30" />
+            <span className="text-xs text-white/30 font-semibold">No signals transmitted yet</span>
+          </div>
+          <p className="text-xs text-white/20">Go to Encode & Send → transmit a message to see your signal ring here</p>
+        </div>
+      )}
+
       {/* ── Bottom legend ─────────────────────────────────────────────────────── */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 border border-white/10 backdrop-blur-sm rounded-full px-5 py-2.5 z-20 pointer-events-none">
         {([["O","#92B5FF","Hot Blue"],["B","#AABFFF","Blue-White"],["A","#CDDEFF","White"],["F","#F8F7FF","White-Yellow"],["G","#FFF4EA","Yellow"],["K","#FFD2A1","Orange"],["M","#FF9966","Red"]] as [string,string,string][]).map(([cls, col, label]) => (
@@ -447,6 +632,10 @@ export default function StarMap() {
             <span className="text-xs text-white/50 hidden sm:block">{label}</span>
           </div>
         ))}
+        <div className="flex items-center gap-1.5 border-l border-white/10 pl-4">
+          <span className="w-2 h-2 rounded-full border border-cyan-400" style={{ backgroundColor: "transparent" }} />
+          <span className="text-xs text-cyan-400/70 hidden sm:block">Your Signal</span>
+        </div>
       </div>
 
       {/* ── Controls hint ─────────────────────────────────────────────────────── */}
